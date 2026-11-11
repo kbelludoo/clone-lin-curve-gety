@@ -1,0 +1,12 @@
+@LIN:L1c:0.2
+@CURVE_3POOL_GETY{
+  version=1
+  repo="curvefi/curve-contract"
+  source="contracts/pools/3pool/StableSwap3Pool.vy get_D/get_y"
+  license="all_rights_reserved_informational_upstream"
+  commit="bae23a2fc9a0302d174ea1ffce8219a44a92149c"
+  profile="LINVM-1"
+  class="EXPERIMENTAL"
+  purpose="uint64_scale_curve_3pool_newton_gety_128bit"
+  note="Not mainnet uint256. N=3 explicit x0,x1,x2. amp is an argument (not a time-ramped pool field). SCALE=1e9 so Ann*S*D fits 128-bit. get_dy dx=0 fail-closes instead of uint256 wrap of xp[j]-y-1."
+}
