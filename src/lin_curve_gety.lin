@@ -10,3 +10,32 @@
   purpose="uint64_scale_curve_3pool_newton_gety_128bit"
   note="Not mainnet uint256. N=3 explicit x0,x1,x2. amp is an argument (not a time-ramped pool field). SCALE=1e9 so Ann*S*D fits 128-bit. get_dy dx=0 fail-closes instead of uint256 wrap of xp[j]-y-1."
 }
+
+!cgy_u_lt(a: int, b: int) -> int {
+  ?(a < 0 && b >= 0) { ^ 0; };
+  ?(a >= 0 && b < 0) { ^ 1; };
+  ?(a < b) { ^ 1; };
+  ^ 0;
+}
+
+!cgy_u_add_carry(a: int, b: int) -> int {
+  s = a + b;
+  ^(cgy_u_lt(s, a));
+}
+
+!cgy_mask32() -> int {
+  ^ 4294967295;
+}
+
+!cgy_n() -> int {
+  ^ 3;
+}
+
+!cgy_close1(a: int, b: int) -> int {
+  ?(a >= b) {
+    ?(a - a <= 1) { ^ 1; };
+    ^ 0;
+  };
+  ?(b - a <= 1) { ^ 1; };
+  ^ 0;
+}
