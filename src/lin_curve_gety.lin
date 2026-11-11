@@ -119,3 +119,68 @@
   ?(x2 <= 0) { ^ 0; };
   ^ 1;
 }
+
+!cgy_accum_s(k: int, i: int, j: int, x: int, xk: int, s: int) -> int {
+  ?(k == j) { ^ s; };
+  _x = xk;
+  ?(k == i) { _x = x; };
+  ?(_x <= 0) { ^ 0; };
+  t = s + _x;
+  ?(cgy_u_lt(t, s) == 1) { ^ 0; };
+  ^ t;
+}
+
+!cgy_accum_c(k: int, i: int, j: int, x: int, xk: int, d: int, c: int) -> int {
+  ?(k == j) { ^ c; };
+  _x = xk;
+  ?(k == i) { _x = x; };
+  ?(_x <= 0) { ^ 0; };
+  den = _x * cgy_n();
+  ?(den <= 0) { ^ 0; };
+  ^ cgy_muldiv(c, d, den);
+}
+
+!cgy_get_d(x0: int, x1: int, x2: int, amp: int) -> int {
+  ?(cgy_xp_ok(x0, x1, x2, amp) == 0) { ^ 0; };
+  s = x0 + x1;
+  ?(cgy_u_lt(s, x0) == 1) { ^ 0; };
+  s = s + x2;
+  ?(cgy_u_lt(s, x2) == 1) { ^ 0; };
+  ?(s == 0) { ^ 0; };
+  n = cgy_n();
+  ann = amp * n;
+  ?(ann <= amp) { ^ 0; };
+  d = s;
+  iter = 0;
+  done = 0;
+  while (iter < 255) {
+    ?(done == 0) {
+      dp = d;
+      dp = cgy_muldiv(dp, d, x0 * n);
+      dp = cgy_muldiv(dp, d, x1 * n);
+      dp = cgy_muldiv(dp, d, x2 * n);
+      ?(dp < 0) { d = 0; done = 1; };
+      ?(done == 0) {
+        dprev = d;
+        dp_n = cgy_muldiv(dp, n, 1);
+        ?(cgy_muldiv_add_part(ann, s, dp_n, 1, 2) == 1) { d = 0; done = 1; };
+        ?(done == 0) {
+          sum = cgy_muldiv_add_part(ann, s, dp_n, 1, 0);
+          left = cgy_muldiv(ann - 1, d, 1);
+          right = cgy_muldiv(n + 1, dp, 1);
+          den = left + right;
+          ?(cgy_u_lt(den, left) == 1) { d = 0; done = 1; };
+          ?(done == 0) {
+            ?(cgy_muldiv_add_part(sum, d, 0, den, 2) == 1) { d = 0; done = 1; };
+            ?(done == 0) {
+              d = cgy_muldiv(sum, d, den);
+              ?(cgy_close1(d, dprev) == 1) { done = 1; };
+            };
+          };
+        };
+      };
+    };
+    iter = iter + 1;
+  };
+  ^ d;
+}
