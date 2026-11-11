@@ -184,3 +184,125 @@
   };
   ^ d;
 }
+
+!cgy_get_y(i: int, j: int, x: int, x0: int, x1: int, x2: int, amp: int) -> int {
+  ?(i == j) { ^ 0; };
+  ?(i < 0) { ^ 0; };
+  ?(j < 0) { ^ 0; };
+  ?(i > 2) { ^ 0; };
+  ?(j > 2) { ^ 0; };
+  ?(x <= 0) { ^ 0; };
+  ?(cgy_xp_ok(x0, x1, x2, amp) == 0) { ^ 0; };
+  d = cgy_get_d(x0, x1, x2, amp);
+  ?(d <= 0) { ^ 0; };
+  n = cgy_n();
+  ann = amp * n;
+  c = d;
+  s_ = 0;
+  s_ = cgy_accum_s(0, i, j, x, x0, s_);
+  s_ = cgy_accum_s(1, i, j, x, x1, s_);
+  s_ = cgy_accum_s(2, i, j, x, x2, s_);
+  c = cgy_accum_c(0, i, j, x, x0, d, c);
+  c = cgy_accum_c(1, i, j, x, x1, d, c);
+  c = cgy_accum_c(2, i, j, x, x2, d, c);
+  ?(c <= 0) { ^ 0; };
+  ?(cgy_muldiv_add_part(ann, n, 0, 1, 2) == 1) { ^ 0; };
+  ann_n = cgy_muldiv(ann, n, 1);
+  ?(ann_n <= 0) { ^ 0; };
+  c = cgy_muldiv(c, d, ann_n);
+  ?(c <= 0) { ^ 0; };
+  d_ann = cgy_muldiv(d, 1, ann);
+  b = s_ + d_ann;
+  ?(cgy_u_lt(b, s_) == 1) { ^ 0; };
+  y = d;
+  iter = 0;
+  done = 0;
+  while (iter < 255) {
+    ?(done == 0) {
+      yprev = y;
+      two_y = y + y;
+      ?(cgy_u_lt(two_y, y) == 1) { y = 0; done = 1; };
+      ?(done == 0) {
+        num_ok = 1;
+        ?(cgy_u_add_carry(two_y, b) == 1) { num_ok = 0; };
+        tb = two_y + b;
+        ?(cgy_u_lt(tb, d) == 1) { num_ok = 0; };
+        ?(num_ok == 0) { y = 0; done = 1; };
+        ?(done == 0) {
+          den = tb - d;
+          ?(den <= 0) { y = 0; done = 1; };
+          ?(done == 0) {
+            ?(cgy_muldiv_add_part(y, y, c, den, 2) == 1) { y = 0; done = 1; };
+            ?(done == 0) {
+              y = cgy_muldiv_add_part(y, y, c, den, 0);
+              ?(cgy_close1(y, yprev) == 1) { done = 1; };
+            };
+          };
+        };
+      };
+    };
+    iter = iter + 1;
+  };
+  ^ y;
+}
+
+!cgy_get_dy_nofee(i: int, j: int, dx: int, x0: int, x1: int, x2: int, amp: int) -> int {
+  ?(dx < 0) { ^ 0; };
+  xi = cgy_pick(i, x0, x1, x2);
+  ?(xi <= 0) { ^ 0; };
+  x = xi + dx;
+  ?(cgy_u_lt(x, xi) == 1) { ^ 0; };
+  y = cgy_get_y(i, j, x, x0, x1, x2, amp);
+  ?(y <= 0) { ^ 0; };
+  xj = cgy_pick(j, x0, x1, x2);
+  ?(cgy_u_lt(xj, y) == 1) { ^ 0; };
+  raw = xj - y;
+  ?(raw <= 0) { ^ 0; };
+  ^ raw - 1;
+}
+
+!cgy_naive_i64_mul(a: int, b: int) -> int {
+  ^ a * b;
+}
+
+!cgy_test_suite() -> int {
+  e9 = 1000000000;
+  ?(cgy_muldiv(100, 200, 50) != 400) { ^ -1; };
+  ?(cgy_get_d(e9, e9, e9, 100) != 3000000000) { ^ -2; };
+  ?(cgy_get_d(e9, e9, e9, 2000) != 3000000000) { ^ -3; };
+  ?(cgy_get_y(0, 1, e9, e9, e9, e9, 100) != e9) { ^ -4; };
+  ?(cgy_get_y(0, 1, 1100000000, e9, e9, e9, 100) != 900099889) { ^ -5; };
+  ?(cgy_get_y(0, 1, 1100000000, e9, e9, e9, 2000) != 900005047) { ^ -6; };
+  ?(cgy_get_dy_nofee(0, 1, 100000000, e9, e9, e9, 100) != 99900110) { ^ -7; };
+  ?(cgy_get_dy_nofee(0, 1, 100000000, e9, e9, e9, 2000) != 99994952) { ^ -8; };
+  ?(cgy_get_y(0, 0, e9, e9, e9, e9, 100) != 0) { ^ -9; };
+  ?(cgy_get_d(0, e9, e9, 100) != 0) { ^ -10; };
+  ?(cgy_get_dy_nofee(0, 1, 0, e9, e9, e9, 100) != 0) { ^ -11; };
+  ?(cgy_get_d(1200000000, 900000000, e9, 100) != 3099778671) { ^ -12; };
+  ?(cgy_get_y(0, 1, 1100000000, 1200000000, 900000000, e9, 100) != 999810078) { ^ -13; };
+  ?(cgy_naive_i64_mul(3099778671, 3099778671) != -8838116264523025375) { ^ -14; };
+  ?(cgy_n() != 3) { ^ -15; };
+  ?(cgy_get_y(1, 0, e9, e9, e9, e9, 100) != e9) { ^ -16; };
+  ?(cgy_get_d(e9, e9, e9, 0) != 0) { ^ -17; };
+  ?(cgy_get_y(3, 1, e9, e9, e9, e9, 100) != 0) { ^ -18; };
+  ^ 1;
+}
+
+=ex{
+  cgy_u_lt,
+  cgy_u_add_carry,
+  cgy_mask32,
+  cgy_n,
+  cgy_close1,
+  cgy_muldiv_add_part,
+  cgy_muldiv,
+  cgy_pick,
+  cgy_xp_ok,
+  cgy_accum_s,
+  cgy_accum_c,
+  cgy_get_d,
+  cgy_get_y,
+  cgy_get_dy_nofee,
+  cgy_naive_i64_mul,
+  cgy_test_suite
+}
