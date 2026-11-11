@@ -135,3 +135,134 @@ static uint64_t get_d(uint64_t x0, uint64_t x1, uint64_t x2, uint64_t amp, mdadd
     }
     return d;
 }
+
+static uint64_t get_y(int i, int j, uint64_t x, uint64_t x0, uint64_t x1, uint64_t x2,
+                      uint64_t amp, mdadd_fn md) {
+    uint64_t d, c, s_, ann, ann_n, d_ann, b, y, yprev, two_y, tb, den, xk, _x;
+    int k, iter;
+    if (i == j || i < 0 || j < 0 || i > 2 || j > 2 || x == 0) return 0;
+    d = get_d(x0, x1, x2, amp, md);
+    if (d == 0) return 0;
+    ann = amp * (uint64_t)NCOINS;
+    c = d;
+    s_ = 0;
+    for (k = 0; k < NCOINS; k++) {
+        if (k == j) continue;
+        xk = pick(k, x0, x1, x2);
+        _x = (k == i) ? x : xk;
+        if (_x == 0) return 0;
+        if (s_ > UINT64_MAX - _x) return 0;
+        s_ += _x;
+        c = md(c, d, 0, _x * (uint64_t)NCOINS);
+        if (c == 0) return 0;
+    }
+    ann_n = md(ann, (uint64_t)NCOINS, 0, 1);
+    if (ann_n == 0) return 0;
+    c = md(c, d, 0, ann_n);
+    if (c == 0) return 0;
+    d_ann = md(d, 1, 0, ann);
+    if (s_ > UINT64_MAX - d_ann) return 0;
+    b = s_ + d_ann;
+    y = d;
+    for (iter = 0; iter < NEWTON; iter++) {
+        yprev = y;
+        if (y > UINT64_MAX - y) return 0;
+        two_y = y + y;
+        if (two_y > UINT64_MAX - b) return 0;
+        tb = two_y + b;
+        if (tb < d) return 0;
+        den = tb - d;
+        if (den == 0) return 0;
+        y = md(y, y, c, den);
+        if (y >= yprev) {
+            if (y - yprev <= 1) break;
+        } else if (yprev - y <= 1) {
+            break;
+        }
+    }
+    return y;
+}
+
+static uint64_t get_dy(int i, int j, uint64_t dx, uint64_t x0, uint64_t x1, uint64_t x2,
+                       uint64_t amp, mdadd_fn md) {
+    uint64_t xi, x, y, xj, raw;
+    xi = pick(i, x0, x1, x2);
+    if (xi == 0) return 0;
+    if (xi > UINT64_MAX - dx) return 0;
+    x = xi + dx;
+    y = get_y(i, j, x, x0, x1, x2, amp, md);
+    if (y == 0) return 0;
+    xj = pick(j, x0, x1, x2);
+    if (xj < y) return 0;
+    raw = xj - y;
+    if (raw == 0) return 0;
+    return raw - 1;
+}
+
+static int selftest(void) {
+    uint64_t e9 = 1000000000ULL;
+    uint64_t d_i, d_l, y_i, y_l, dy_i, dy_l;
+    uint64_t q_i, q_l, r;
+    int ov;
+    q_i = muldiv_add_i128(100, 200, 0, 50);
+    q_l = muldiv_add_limbs_q(100, 200, 0, 50);
+    if (q_i != 400 || q_l != 400) return 1;
+    muldiv_add_limbs(100, 200, 0, 50, &q_l, &r, &ov);
+    if (r != 0 || ov != 0) return 1;
+    d_i = get_d(e9, e9, e9, 100, muldiv_add_i128);
+    d_l = get_d(e9, e9, e9, 100, muldiv_add_limbs_q);
+    if (d_i != 3000000000ULL || d_i != d_l) return 1;
+    y_i = get_y(0, 1, e9, e9, e9, e9, 100, muldiv_add_i128);
+    y_l = get_y(0, 1, e9, e9, e9, e9, 100, muldiv_add_limbs_q);
+    if (y_i != e9 || y_i != y_l) return 1;
+    y_i = get_y(0, 1, 1100000000ULL, e9, e9, e9, 100, muldiv_add_i128);
+    y_l = get_y(0, 1, 1100000000ULL, e9, e9, e9, 100, muldiv_add_limbs_q);
+    if (y_i != 900099889ULL || y_i != y_l) return 1;
+    dy_i = get_dy(0, 1, 100000000ULL, e9, e9, e9, 100, muldiv_add_i128);
+    dy_l = get_dy(0, 1, 100000000ULL, e9, e9, e9, 100, muldiv_add_limbs_q);
+    if (dy_i != 99900110ULL || dy_i != dy_l) return 1;
+    if (get_dy(0, 1, 0, e9, e9, e9, 100, muldiv_add_i128) != 0) return 1;
+    if (get_y(0, 0, e9, e9, e9, e9, 100, muldiv_add_i128) != 0) return 1;
+    printf("PASS\n");
+    return 0;
+}
+
+static mdadd_fn parse_md(int argc, char **argv) {
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--limbs") == 0) return muldiv_add_limbs_q;
+    }
+    return muldiv_add_i128;
+}
+
+int main(int argc, char **argv) {
+    mdadd_fn md;
+    if (argc < 2) {
+        fprintf(stderr, "usage: curve_gety_c11 selftest|getd|gety|dy ... [--limbs]\n");
+        return 2;
+    }
+    md = parse_md(argc, argv);
+    if (strcmp(argv[1], "selftest") == 0) return selftest();
+    if (strcmp(argv[1], "getd") == 0 && argc >= 6) {
+        printf("%" PRIu64 "\n",
+               get_d(strtoull(argv[2], NULL, 10), strtoull(argv[3], NULL, 10),
+                     strtoull(argv[4], NULL, 10), strtoull(argv[5], NULL, 10), md));
+        return 0;
+    }
+    if (strcmp(argv[1], "gety") == 0 && argc >= 9) {
+        printf("%" PRIu64 "\n",
+               get_y(atoi(argv[2]), atoi(argv[3]), strtoull(argv[4], NULL, 10),
+                     strtoull(argv[5], NULL, 10), strtoull(argv[6], NULL, 10),
+                     strtoull(argv[7], NULL, 10), strtoull(argv[8], NULL, 10), md));
+        return 0;
+    }
+    if (strcmp(argv[1], "dy") == 0 && argc >= 9) {
+        printf("%" PRIu64 "\n",
+               get_dy(atoi(argv[2]), atoi(argv[3]), strtoull(argv[4], NULL, 10),
+                      strtoull(argv[5], NULL, 10), strtoull(argv[6], NULL, 10),
+                      strtoull(argv[7], NULL, 10), strtoull(argv[8], NULL, 10), md));
+        return 0;
+    }
+    fprintf(stderr, "bad args\n");
+    return 2;
+}
